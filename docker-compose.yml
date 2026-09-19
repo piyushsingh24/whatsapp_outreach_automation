@@ -1,0 +1,87 @@
+# NOTE: App MySQL is NOT run here — it lives in WSL Ubuntu (localhost:3306,
+# see DATABASE_URL in .env). Only Evolution's own Postgres + cache Redis
+# and Evolution API run in Docker.
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  evolution-postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: evolution
+      POSTGRES_USER: evolution
+      POSTGRES_PASSWORD: evo_pass_123
+    volumes:
+      - evolution_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U evolution -d evolution"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  evolution:
+    image: evoapicloud/evolution-api:v2.3.7
+    restart: unless-stopped
+    environment:
+      SERVER_TYPE: http
+      SERVER_PORT: 8080
+      AUTHENTICATION_API_KEY: 9d9fe2b0117bb5dca560bdd20794c852bb0ec557f7b35e6f
+      # Evolution v2 requires a real database provider (postgresql/mysql).
+      DATABASE_PROVIDER: "postgresql"
+      DATABASE_CONNECTION_URI: "postgresql://evolution:evo_pass_123@evolution-postgres:5432/evolution"
+      DATABASE_CONNECTION_CLIENT_NAME: evolution
+      # Our app tracks message state via webhooks — Evolution only needs to
+      # persist the instance record itself (required for socket startup).
+      DATABASE_SAVE_DATA_INSTANCE: "true"
+      DATABASE_SAVE_DATA_NEW_MESSAGE: "false"
+      DATABASE_SAVE_MESSAGE_UPDATE: "false"
+      DATABASE_SAVE_DATA_CONTACTS: "false"
+      DATABASE_SAVE_DATA_CHATS: "false"
+      # Evolution's internal queue/cache talks to our compose redis
+      # (hostname `redis` on the compose network). Covers both the legacy
+      # REDIS_* schema and the newer CACHE_REDIS_* schema.
+      REDIS_ENABLED: "true"
+      REDIS_URI: "redis://redis:6379"
+      REDIS_PREFIX_KEY: evolution
+      CACHE_REDIS_ENABLED: "true"
+      CACHE_REDIS_URI: "redis://redis:6379"
+      CACHE_REDIS_PREFIX_KEY: evolution
+      CACHE_REDIS_SAVE_INSTANCES: "false"
+      CACHE_LOCAL_ENABLED: "false"
+      RABBITMQ_ENABLED: "false"
+      WEBSOCKET_ENABLED: "false"
+      QRCODE_LIMIT: 30
+      WEBHOOK_GLOBAL_URL: http://host.docker.internal:3000/api/webhooks/evolution
+      WEBHOOK_GLOBAL_ENABLED: "true"
+      WEBHOOK_EVENTS_MESSAGES_UPDATE: "true"
+      WEBHOOK_EVENTS_MESSAGES_UPSERT: "true"
+      WEBHOOK_EVENTS_CONNECTION_UPDATE: "true"
+    ports:
+      # Host 8080 is taken by another project (searxng) — Evolution API
+      # still listens on 8080 inside the container.
+      - "8081:8080"
+    volumes:
+      # Persists WhatsApp sessions — without this, every container
+      # recreate forces a fresh QR scan.
+      - evolution_instances:/evolution/instances
+    depends_on:
+      redis:
+        condition: service_healthy
+      evolution-postgres:
+        condition: service_healthy
+
+volumes:
+  redis_data:
+  evolution_pgdata:
+  evolution_instances:
