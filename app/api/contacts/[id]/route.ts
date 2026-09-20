@@ -6,7 +6,10 @@ import { updateContactSchema } from "@/validators/contact";
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   try {
     const userId = await requireUserId();
-    const contact = await prisma.contact.findFirst({ where: { id: params.id, userId } });
+    const contact = await prisma.contact.findFirst({
+      where: { id: params.id, userId },
+      include: { groups: { include: { group: { select: { id: true, name: true, color: true } } } } },
+    });
     if (!contact) throw Errors.notFound("Contact");
     const campaigns = await prisma.campaignContact.findMany({
       where: { contactId: contact.id },
@@ -38,7 +41,27 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       if (dupe) throw Errors.conflict("Another contact already uses this phone number");
     }
     const updated = await prisma.contact.update({ where: { id: existing.id }, data: parsed.data as never });
-    return Response.json({ contact: updated });
+    if (Array.isArray((body as { groupIds?: unknown }).groupIds)) {
+      const groupIds = ((body as { groupIds: unknown }).groupIds as string[]).filter(
+        (g): g is string => typeof g === "string" && g.length > 0
+      ).slice(0, 10);
+      const validGroups =
+        groupIds.length > 0
+          ? await prisma.contactGroup.findMany({ where: { userId, id: { in: groupIds } }, select: { id: true } })
+          : [];
+      await prisma.contactGroupMember.deleteMany({ where: { contactId: existing.id } });
+      if (validGroups.length > 0) {
+        await prisma.contactGroupMember.createMany({
+          data: validGroups.map((g) => ({ groupId: g.id, contactId: existing.id })),
+          skipDuplicates: true,
+        });
+      }
+    }
+    const withGroups = await prisma.contact.findUnique({
+      where: { id: existing.id },
+      include: { groups: { include: { group: { select: { id: true, name: true, color: true } } } } },
+    });
+    return Response.json({ contact: withGroups ?? updated });
   } catch (err) {
     return toErrorResponse(err);
   }

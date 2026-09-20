@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { Errors } from "@/lib/errors";
 import { assertCampaignTransition } from "@/services/campaign/transitions";
 import type { CreateCampaignInput } from "@/validators/campaign";
 
@@ -10,7 +11,7 @@ export async function createCampaign(userId: string, input: CreateCampaignInput)
     where: { userId, id: { in: input.contactIds } },
     select: { id: true, phone: true, status: true },
   });
-  if (contacts.length === 0) throw new Error("No valid contacts selected");
+  if (contacts.length === 0) throw Errors.validation("No valid contacts selected");
   const blocked = contacts.filter((c) => ["OPTED_OUT", "BLOCKED", "INVALID"].includes(c.status));
   const eligible = contacts.filter((c) => !["OPTED_OUT", "BLOCKED", "INVALID"].includes(c.status));
 
@@ -63,7 +64,7 @@ export async function createCampaign(userId: string, input: CreateCampaignInput)
 
 export async function getCampaignForUser(userId: string, campaignId: string) {
   const campaign = await prisma.campaign.findFirst({ where: { id: campaignId, userId } });
-  if (!campaign) throw new Error("Campaign not found");
+  if (!campaign) throw Errors.notFound("Campaign");
   return campaign;
 }
 

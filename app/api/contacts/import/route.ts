@@ -35,6 +35,23 @@ export async function POST(req: Request) {
     }
 
     const summary = await importContactsForUser(userId, parsed.rows, parsed.errors, parsed.totalRows, file.name);
+    const rawGroupId = form.get("groupId");
+    const groupId = typeof rawGroupId === "string" && rawGroupId.length > 0 ? rawGroupId : null;
+    if (groupId && summary.batchId && summary.importedRows > 0) {
+      const group = await prisma.contactGroup.findFirst({ where: { id: groupId, userId } });
+      if (group) {
+        const batchContacts = await prisma.contact.findMany({
+          where: { importBatchId: summary.batchId },
+          select: { id: true },
+        });
+        if (batchContacts.length > 0) {
+          await prisma.contactGroupMember.createMany({
+            data: batchContacts.map((c) => ({ groupId: group.id, contactId: c.id })),
+            skipDuplicates: true,
+          });
+        }
+      }
+    }
     await prisma.auditLog.create({
       data: { userId, action: "FILE_UPLOADED", metadata: { fileName: file.name, ...summary } },
     }).catch(() => undefined);

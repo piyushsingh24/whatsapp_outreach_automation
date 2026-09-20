@@ -6,7 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 
 interface Campaign {
@@ -18,19 +20,45 @@ interface Campaign {
   failedCount: number;
 }
 
+interface TargetContact {
+  id: string;
+  name: string;
+  phone: string;
+  groups?: Array<{ group: { id: string; name: string } }>;
+}
+
+interface Group {
+  id: string;
+  name: string;
+  memberCount: number;
+}
+
 export default function CampaignsPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [contacts, setContacts] = useState<Array<{ id: string; name: string; phone: string }>>([]);
+  const [contacts, setContacts] = useState<TargetContact[]>([]);
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [groupFilter, setGroupFilter] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
   const [form, setForm] = useState({ name: "", objective: "", tone: "Professional and friendly", language: "English", cta: "" });
+  const [pageLoading, setPageLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [selectingGroup, setSelectingGroup] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   async function load() {
-    const [c, ct] = await Promise.all([
-      fetch("/api/campaigns").then((r) => r.json()).catch(() => null),
-      fetch("/api/contacts?pageSize=100").then((r) => r.json()).catch(() => null),
-    ]);
-    if (c?.campaigns) setCampaigns(c.campaigns);
-    if (ct?.contacts) setContacts(ct.contacts);
+    setPageLoading(true);
+    try {
+      const [c, ct, g] = await Promise.all([
+        fetch("/api/campaigns").then((r) => r.json()).catch(() => null),
+        fetch("/api/contacts?pageSize=100").then((r) => r.json()).catch(() => null),
+        fetch("/api/contact-groups").then((r) => r.json()).catch(() => null),
+      ]);
+      if (c?.campaigns) setCampaigns(c.campaigns);
+      if (ct?.contacts) setContacts(ct.contacts);
+      if (g?.groups) setGroups(g.groups);
+    } finally {
+      setPageLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -41,21 +69,61 @@ export default function CampaignsPage() {
     setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
   }
 
-  async function create() {
-    const res = await fetch("/api/campaigns", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...form, description: "", contactIds: selected }),
-    });
-    if (res.ok) {
-      setForm({ name: "", objective: "", tone: "Professional and friendly", language: "English", cta: "" });
-      setSelected([]);
-      void load();
-    } else {
-      const j = await res.json().catch(() => null);
-      alert(j?.error?.message ?? "Failed to create campaign");
+  async function selectGroup(groupId: string) {
+    if (!groupId || selectingGroup) return;
+    setSelectingGroup(true);
+    try {
+      const res = await fetch(`/api/contacts?groupId=${encodeURIComponent(groupId)}&pageSize=100`).then((r) => r.json()).catch(() => null);
+      const ids: string[] = (res?.contacts as TargetContact[] | undefined)?.map((c) => c.id) ?? [];
+      if (ids.length > 0) {
+        setContacts((prev) => {
+          const existing = new Set(prev.map((c) => c.id));
+          const merged = [...prev];
+          for (const c of (res.contacts as TargetContact[])) {
+            if (!existing.has(c.id)) merged.push(c);
+          }
+          return merged;
+        });
+        setSelected((s) => Array.from(new Set([...s, ...ids])));
+      }
+    } finally {
+      setSelectingGroup(false);
     }
   }
+
+  function selectFiltered() {
+    const ids = filtered.map((c) => c.id);
+    setSelected((s) => Array.from(new Set([...s, ...ids])));
+  }
+
+  async function create() {
+    if (creating) return;
+    setCreating(true);
+    setFormError(null);
+    try {
+      const res = await fetch("/api/campaigns", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...form, description: "", contactIds: selected }),
+      });
+      if (res.ok) {
+        setForm({ name: "", objective: "", tone: "Professional and friendly", language: "English", cta: "" });
+        setSelected([]);
+        await load();
+      } else {
+        const j = await res.json().catch(() => null);
+        setFormError(j?.error?.message ?? "Failed to create campaign");
+      }
+    } catch {
+      setFormError("Network error — please retry");
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  const filtered = groupFilter
+    ? contacts.filter((c) => (c.groups ?? []).some(({ group }) => group.id === groupFilter))
+    : contacts;
 
   return (
     <div className="space-y-6">
@@ -74,22 +142,40 @@ export default function CampaignsPage() {
           </div>
           <div className="space-y-2">
             <Label>Target contacts ({selected.length} selected)</Label>
+            <div className="flex flex-wrap gap-2">
+              <Select value={groupFilter} onChange={(e) => setGroupFilter(e.target.value)} className="max-w-xs">
+                <option value="">All groups</option>
+                {groups.map((g) => (
+                  <option key={g.id} value={g.id}>{g.name} ({g.memberCount})</option>
+                ))}
+              </Select>
+              <Button size="sm" variant="outline" onClick={() => void selectGroup(groupFilter)} disabled={!groupFilter || selectingGroup}>{selectingGroup ? "Selecting…" : "Select entire group"}</Button>
+              <Button size="sm" variant="outline" onClick={selectFiltered} disabled={filtered.length === 0}>Select filtered ({filtered.length})</Button>
+              <Button size="sm" variant="ghost" onClick={() => setSelected([])} disabled={selected.length === 0}>Clear</Button>
+            </div>
             <div className="max-h-48 overflow-auto rounded border p-2 text-sm">
-              {contacts.map((c) => (
+              {filtered.map((c) => (
                 <label key={c.id} className="flex items-center gap-2 py-1">
                   <input type="checkbox" checked={selected.includes(c.id)} onChange={() => toggle(c.id)} />
-                  {c.name} — {c.phone}
+                  <span>{c.name} — {c.phone}</span>
+                  {(c.groups ?? []).map(({ group }) => (
+                    <Badge key={group.id} variant="secondary">{group.name}</Badge>
+                  ))}
                 </label>
               ))}
-              {contacts.length === 0 && <p className="text-muted-foreground">Import contacts first.</p>}
+              {filtered.length === 0 && <p className="text-muted-foreground">Import contacts first.</p>}
             </div>
           </div>
-          <Button onClick={create} disabled={!form.name || !form.objective || selected.length === 0}>Create campaign</Button>
+          {formError && <p className="text-sm text-destructive">{formError}</p>}
+          <Button onClick={create} disabled={creating || pageLoading || !form.name || !form.objective || selected.length === 0}>{creating ? "Creating…" : "Create campaign"}</Button>
         </CardContent>
       </Card>
       <Card>
-        <CardHeader><CardTitle>All campaigns</CardTitle></CardHeader>
+        <CardHeader><CardTitle>All campaigns {pageLoading && <span className="text-sm font-normal text-muted-foreground">(loading…)</span>}</CardTitle></CardHeader>
         <CardContent>
+          {pageLoading && campaigns.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Loading campaigns…</p>
+          ) : (
           <ul className="divide-y text-sm">
             {campaigns.map((c) => (
               <li key={c.id} className="flex items-center justify-between py-2">
@@ -99,6 +185,7 @@ export default function CampaignsPage() {
             ))}
             {campaigns.length === 0 && <p className="text-muted-foreground">No campaigns yet.</p>}
           </ul>
+          )}
         </CardContent>
       </Card>
     </div>

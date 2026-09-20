@@ -36,6 +36,26 @@ export const updateContactSchema = z.object({
 export const contactQuerySchema = z.object({
   search: z.string().max(200).optional(),
   status: z.string().max(50).optional(),
+  groupId: z.string().min(1).max(100).optional(),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
 });
+
+export const createContactSchema = contactRowSchema.extend({
+  groupIds: z.array(z.string().min(1)).max(10).optional().default([]),
+});
+
+export const bulkCreateContactSchema = z.object({
+  contacts: z.array(createContactSchema).min(1, "Add at least one contact").max(100, "Max 100 contacts per request"),
+});
+
+export const bulkAssignGroupSchema = z.object({
+  contactIds: z.array(z.string().min(1)).min(1).max(500),
+  groupIds: z.array(z.string().min(1)).max(10),
+});
+
+export const bulkDeleteContactsSchema = z.object({
+  contactIds: z.array(z.string().min(1)).min(1).max(500),
+});
+
+export type CreateContactInput = z.infer<typeof createContactSchema>;

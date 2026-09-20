@@ -1,4 +1,5 @@
 import type { CampaignStatus, MessageStatus } from "@/types";
+import { Errors } from "@/lib/errors";
 
 /** Allowed campaign transitions. Invalid transitions throw. */
 const TRANSITIONS: Record<CampaignStatus, CampaignStatus[]> = {
@@ -19,7 +20,7 @@ export function canTransitionCampaign(from: CampaignStatus, to: CampaignStatus):
 
 export function assertCampaignTransition(from: CampaignStatus, to: CampaignStatus) {
   if (!canTransitionCampaign(from, to)) {
-    throw new Error(`Invalid campaign transition: ${from} → ${to}`);
+    throw Errors.conflict(`Cannot move campaign from ${from} to ${to}`);
   }
 }
 
