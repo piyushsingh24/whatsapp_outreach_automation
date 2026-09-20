@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 
 interface Contact {
   id: string;
@@ -80,7 +80,7 @@ export default function ContactsPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
-                <TableHead>Business</TableHead>
+                <TableHead>Business Name</TableHead>
                 <TableHead>Phone</TableHead>
                 <TableHead>Work</TableHead>
                 <TableHead>Status</TableHead>
@@ -93,7 +93,7 @@ export default function ContactsPage() {
                   <TableCell>{c.businessName}</TableCell>
                   <TableCell>{c.phone}</TableCell>
                   <TableCell>{c.businessWork}</TableCell>
-                  <TableCell><Badge variant="secondary">{c.status}</Badge></TableCell>
+                  <TableCell><StatusBadge status={c.status} /></TableCell>
                 </TableRow>
               ))}
               {contacts.length === 0 && (

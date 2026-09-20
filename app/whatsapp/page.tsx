@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 
 export default function WhatsAppPage() {
   const [instances, setInstances] = useState<Array<{ name: string; status: string; phone?: string; qrCode?: string }>>([]);
@@ -75,7 +75,7 @@ export default function WhatsAppPage() {
             {instances.map((i) => (
               <li key={i.name} className="flex justify-between py-2">
                 <span>{i.name} {i.phone && <span className="text-muted-foreground">· {i.phone}</span>}</span>
-                <Badge>{i.status}</Badge>
+                <StatusBadge status={i.status} />
               </li>
             ))}
             {instances.length === 0 && <p className="text-muted-foreground">No instances yet.</p>}

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 
 interface Campaign {
   id: string;
@@ -93,7 +93,7 @@ export default function CampaignsPage() {
           <ul className="divide-y text-sm">
             {campaigns.map((c) => (
               <li key={c.id} className="flex items-center justify-between py-2">
-                <span><Link href={`/campaigns/${c.id}`} className="font-medium underline">{c.name}</Link> <Badge variant="secondary">{c.status}</Badge></span>
+                <span><Link href={`/campaigns/${c.id}`} className="font-medium underline">{c.name}</Link> <StatusBadge status={c.status} /></span>
                 <span className="text-muted-foreground">Contacts {c.totalContacts} · Sent {c.sentCount} · Failed {c.failedCount}</span>
               </li>
             ))}

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export default function MessagesPage() {
@@ -51,7 +51,7 @@ export default function MessagesPage() {
               {messages.map((m) => (
                 <TableRow key={m.id}>
                   <TableCell>{m.phone}</TableCell>
-                  <TableCell><Badge variant="secondary">{m.status}</Badge></TableCell>
+                  <TableCell><StatusBadge status={m.status} /></TableCell>
                   <TableCell className="max-w-md truncate">{m.finalBody ?? "—"}</TableCell>
                 </TableRow>
               ))}

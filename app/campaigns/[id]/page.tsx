@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 
 interface Message {
   id: string;
@@ -56,7 +56,7 @@ export default function CampaignDetailPage() {
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         <h1 className="text-2xl font-bold">{campaign?.name ?? "Campaign"}</h1>
-        {campaign && <Badge>{campaign.status}</Badge>}
+        {campaign && <StatusBadge status={campaign.status} />}
       </div>
       <Card>
         <CardHeader><CardTitle>Controls</CardTitle></CardHeader>
@@ -75,7 +75,7 @@ export default function CampaignDetailPage() {
           <Card key={m.id}>
             <CardHeader>
               <CardTitle className="text-base">{m.contact.name} — {m.contact.businessName} <span className="text-sm font-normal text-muted-foreground">({m.contact.businessWork} · {m.phone})</span></CardTitle>
-              <Badge variant="secondary" className="w-fit">{m.status}</Badge>
+              <StatusBadge status={m.status} className="w-fit" />
             </CardHeader>
             <CardContent className="space-y-3">
               <Textarea

@@ -6,7 +6,10 @@ import { prisma } from "@/lib/prisma";
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
-  session: { strategy: "jwt" },
+  // Persistent login: 30-day session cookie, sliding refresh on activity
+  // (middleware + getServerSession extend it while the user keeps visiting).
+  session: { strategy: "jwt", maxAge: 30 * 24 * 60 * 60, updateAge: 24 * 60 * 60 },
+  jwt: { maxAge: 30 * 24 * 60 * 60 },
   pages: { signIn: "/login", newUser: "/register" },
   providers: [
     CredentialsProvider({
