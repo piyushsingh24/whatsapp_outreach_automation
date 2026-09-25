@@ -12,11 +12,22 @@ export const runtime = "nodejs";
  */
 export async function POST(req: Request) {
   try {
-    // Optional shared-secret check
+    // Optional shared-secret check.
+    // Evolution v2 signs webhook calls with its own `apikey` header
+    // (= Evolution AUTHENTICATION_API_KEY), so accept EITHER our custom
+    // secret (x-webhook-secret, set as a custom Evolution webhook header)
+    // OR the Evolution API key. Without this, setting a random
+    // EVOLUTION_WEBHOOK_SECRET would 401 every legitimate Evolution call.
     const secret = process.env.EVOLUTION_WEBHOOK_SECRET;
-    if (secret) {
-      const got = req.headers.get("x-webhook-secret") ?? req.headers.get("apikey");
-      if (got !== secret) {
+    const apiKey = process.env.EVOLUTION_API_KEY;
+    if (secret || apiKey) {
+      const custom = req.headers.get("x-webhook-secret");
+      const keyHeader = req.headers.get("apikey");
+      const ok =
+        Boolean(secret && (custom === secret || keyHeader === secret)) ||
+        Boolean(apiKey && keyHeader === apiKey) ||
+        Boolean(!secret && !custom);
+      if (!ok) {
         logger.warn("webhook.unauthorized", {});
         return Response.json({ error: { code: "UNAUTHORIZED", message: "Invalid webhook secret" } }, { status: 401 });
       }
